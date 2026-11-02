@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Drone Dynamic Pathfinding Simulation (Wumpus World + Power-Ups)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #090d16;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .canvas-container {
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e293b;
+            border-radius: 4px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 8px #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100">
+
+    <!-- HEADER BAR -->
+    <header class="glass-panel sticky top-0 z-50 px-6 py-3 border-b border-cyan-900/40 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30 text-cyan-400">
+                <i class="fa-solid fa-drone text-2xl animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-400">
+                    AERO-WUMPUS AI
+                </h1>
+                <p class="text-xs text-slate-400 tracking-wide">DYNAMIC THREAT INTERCEPTION & POWER-UP ENHANCED SIMULATOR</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4 text-xs font-orbitron">
+            <div class="bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                <span class="text-slate-400">STATUS:</span>
+                <span id="system-status" class="text-cyan-400 font-bold">READY</span>
+            </div>
+            <div class="bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-trophy text-amber-400"></i>
+                <span class="text-slate-400">SCORE:</span>
+                <span id="live-score" class="text-amber-400 font-bold text-sm">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1800px] mx-auto w-full">
+        
+        <!-- LEFT PANEL: CONTROLS & PARAMS -->
+        <section class="lg:col-span-3 flex flex-col gap-5">
+            
+            <!-- SIMULATION MODE SELECTION -->
+            <div class="glass-panel p-5 rounded-xl flex flex-col gap-3">
+                <h2 class="text-sm font-bold font-orbitron text-cyan-400 tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-microchip"></i> CONTROLLER MODE
+                </h2>
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="mode-manual" onclick="setControllerMode('manual')" class="p-2.5 rounded-lg border text-xs font-semibold text-left transition flex items-center justify-between bg-cyan-950/40 border-cyan-500/50 text-cyan-300">
+                        <span><i class="fa-solid fa-gamepad mr-2"></i> Manual Control</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20">WASD / Keys</span>
+                    </button>
+                    <button id="mode-astar" onclick="setControllerMode('astar')" class="p-2.5 rounded-lg border text-xs font-semibold text-left transition flex items-center justify-between bg-slate-900 border-slate-800 text-slate-400 hover:border-cyan-500/40">
+                        <span><i class="fa-solid fa-network-wired mr-2"></i> A* Risk & Power AI</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">Heuristic</span>
+                    </button>
+                    <button id="mode-qlearning" onclick="setControllerMode('qlearning')" class="p-2.5 rounded-lg border text-xs font-semibold text-left transition flex items-center justify-between bg-slate-900 border-slate-800 text-slate-400 hover:border-cyan-500/40">
+                        <span><i class="fa-solid fa-brain mr-2"></i> Q-Learning RL Agent</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">Model-Free</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ENVIRONMENT CONFIGURATION -->
+            <div class="glass-panel p-5 rounded-xl flex flex-col gap-4">
+                <h2 class="text-sm font-bold font-orbitron text-cyan-400 tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-sliders"></i> ENVIRONMENT SETUP
+                </h2>
+                
+                <!-- Grid Size Slider -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Grid Dimension:</span>
+                        <span id="val-grid-size" class="text-cyan-400 font-mono font-bold">12 x 12</span>
+                    </div>
+                    <input type="range" id="slider-grid-size" min="8" max="20" value="12" step="1" oninput="updateEnvSettings()">
+                </div>
+
+                <!-- Obstacles Slider -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Flanking Obstacles:</span>
+                        <span id="val-obstacles" class="text-amber-400 font-mono font-bold">4</span>
+                    </div>
+                    <input type="range" id="slider-obstacles" min="1" max="10" value="4" step="1" oninput="updateEnvSettings()">
+                </div>
+
+                <!-- Hazard Speed Slider -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Hazard Move Interval:</span>
+                        <span id="val-hazard" class="text-red-400 font-mono font-bold">Every 2 steps</span>
+                    </div>
+                    <input type="range" id="slider-hazard" min="1" max="4" value="2" step="1" oninput="updateEnvSettings()">
+                </div>
+
+                <!-- Power-Up Count Slider -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Power-Up Spawn Count:</span>
+                        <span id="val-powerups" class="text-purple-400 font-mono font-bold">3</span>
+                    </div>
+                    <input type="range" id="slider-powerups" min="0" max="6" value="3" step="1" oninput="updateEnvSettings()">
+                </div>
+
+                <!-- Sim Speed Slider -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Execution Speed (FPS):</span>
+                        <span id="val-speed" class="text-emerald-400 font-mono font-bold">6 steps/s</span>
+                    </div>
+                    <input type="range" id="slider-speed" min="1" max="30" value="6" step="1" oninput="updateEnvSettings()">
+                </div>
+
+                <!-- Goal Drift Checkbox -->
+                <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
+                    <span class="text-slate-400">Evasive Goal Pad:</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="check-goal-drift" checked class="sr-only peer" onchange="updateEnvSettings()">
+                        <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- ACTIVE POWER-UP STATUS DISPLAY -->
+            <div class="glass-panel p-5 rounded-xl flex flex-col gap-3 border-l-4 border-l-purple-500">
+                <h2 class="text-sm font-bold font-orbitron text-purple-400 tracking-wider flex items-center justify-between">
+                    <span><i class="fa-solid fa-bolt"></i> ACTIVE POWER-UPS</span>
+                </h2>
+                <div id="active-powerup-list" class="flex flex-col gap-2 text-xs">
+                    <span class="text-slate-500 italic">No power-ups currently active.</span>
+                </div>
+            </div>
+
+            <!-- RL HYPERPARAMETERS -->
+            <div id="panel-rl-params" class="glass-panel p-5 rounded-xl flex flex-col gap-4">
+                <h2 class="text-sm font-bold font-orbitron text-purple-400 tracking-wider flex items-center justify-between">
+                    <span><i class="fa-solid fa-sliders"></i> RL PARAMETERS</span>
+                    <button onclick="trainFast(300)" class="text-[10px] px-2 py-1 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded transition">
+                        <i class="fa-solid fa-bolt mr-1"></i> Fast Train (300)
+                    </button>
+                </h2>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <span class="text-slate-400 block mb-1">Learning Rate (&alpha;)</span>
+                        <input type="number" id="input-alpha" value="0.2" step="0.05" min="0.01" max="1" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-purple-300 font-mono">
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-1">Discount (&gamma;)</span>
+                        <input type="number" id="input-gamma" value="0.9" step="0.05" min="0.1" max="0.99" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-purple-300 font-mono">
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400">Exploration (&epsilon; Decay):</span>
+                        <span id="val-epsilon" class="text-purple-400 font-mono font-bold">1.00</span>
+                    </div>
+                    <input type="range" id="slider-epsilon" min="0.01" max="1" value="1.0" step="0.01" oninput="updateRLParams()">
+                </div>
+            </div>
+
+            <!-- MANUAL CONTROLS ON SCREEN -->
+            <div id="panel-manual-controls" class="glass-panel p-5 rounded-xl flex flex-col items-center gap-2">
+                <span class="text-xs text-slate-400 font-orbitron mb-1">MANUAL THRUST CONTROLS</span>
+                <button onclick="triggerManualMove('UP')" class="w-12 h-12 bg-slate-900 hover:bg-cyan-950 border border-cyan-500/30 text-cyan-400 rounded-lg text-lg flex items-center justify-center transition active:scale-95">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="triggerManualMove('LEFT')" class="w-12 h-12 bg-slate-900 hover:bg-cyan-950 border border-cyan-500/30 text-cyan-400 rounded-lg text-lg flex items-center justify-center transition active:scale-95">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <button onclick="triggerManualMove('DOWN')" class="w-12 h-12 bg-slate-900 hover:bg-cyan-950 border border-cyan-500/30 text-cyan-400 rounded-lg text-lg flex items-center justify-center transition active:scale-95">
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+                    <button onclick="triggerManualMove('RIGHT')" class="w-12 h-12 bg-slate-900 hover:bg-cyan-950 border border-cyan-500/30 text-cyan-400 rounded-lg text-lg flex items-center justify-center transition active:scale-95">
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- CENTER PANEL: SIMULATION CANVAS -->
+        <section class="lg:col-span-6 flex flex-col gap-4 items-center">
+            
+            <div class="canvas-container w-full aspect-square max-w-[620px] bg-slate-950 rounded-2xl border border-cyan-900/40 overflow-hidden relative flex items-center justify-center">
+                <canvas id="simCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+                
+                <div id="canvas-overlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-all opacity-0 pointer-events-none">
+                    <div id="overlay-icon" class="text-5xl mb-3"></div>
+                    <h2 id="overlay-title" class="text-2xl font-bold font-orbitron mb-2"></h2>
+                    <p id="overlay-desc" class="text-sm text-slate-300 max-w-xs mb-6"></p>
+                    <button onclick="resetSimulation()" class="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg font-orbitron font-bold text-xs tracking-wider hover:brightness-110 shadow-lg shadow-cyan-500/30 transition">
+                        RESTART MISSION
+                    </button>
+                </div>
+            </div>
+
+            <!-- SIMULATION PLAYBACK ACTIONS -->
+            <div class="glass-panel px-6 py-3 rounded-xl flex items-center justify-between gap-4 w-full max-w-[620px]">
+                <button id="btn-play-pause" onclick="togglePlayPause()" class="px-5 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-300 rounded-lg font-orbitron font-bold text-xs tracking-wider flex items-center gap-2 transition">
+                    <i id="icon-play-pause" class="fa-solid fa-play"></i>
+                    <span id="text-play-pause">START</span>
+                </button>
+
+                <button onclick="stepOnce()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg font-orbitron font-semibold text-xs transition flex items-center gap-2">
+                    <i class="fa-solid fa-forward-step"></i> STEP
+                </button>
+
+                <button onclick="resetSimulation()" class="px-4 py-2 bg-slate-800 hover:bg-red-950/40 border border-slate-700 hover:border-red-500/50 text-slate-300 hover:text-red-400 rounded-lg font-orbitron font-semibold text-xs transition flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i> RESET
+                </button>
+            </div>
+
+            <!-- LEGEND INCLUDING POWER-UPS -->
+            <div class="flex flex-wrap justify-center gap-3 text-xs font-medium text-slate-400 bg-slate-900/60 px-4 py-2.5 rounded-lg border border-slate-800/80">
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-cyan-400"></span> Drone</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-400"></span> Goal</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500"></span> Mine</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-400"></span> Obstacle</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-cyan-300 border border-cyan-100"></span> Freeze</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-500 border border-purple-300"></span> Blink</div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-100"></span> Shockwave</div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: DASHBOARD & STATS -->
+        <section class="lg:col-span-3 flex flex-col gap-5">
+            
+            <div class="glass-panel p-5 rounded-xl flex flex-col gap-4">
+                <h2 class="text-sm font-bold font-orbitron text-cyan-400 tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line"></i> TELEMETRY DATA
+                </h2>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-orbitron">STEPS EXECUTED</span>
+                        <span id="stat-steps" class="text-xl font-bold font-mono text-cyan-400">0</span>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-orbitron">STEP REWARD</span>
+                        <span id="stat-reward" class="text-xl font-bold font-mono text-slate-300">0</span>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-orbitron">GOAL DISTANCE</span>
+                        <span id="stat-dist" class="text-xl font-bold font-mono text-emerald-400">0</span>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-orbitron">EPISODES</span>
+                        <span id="stat-episodes" class="text-xl font-bold font-mono text-purple-400">0</span>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-800/80 space-y-1">
+                    <p class="font-bold text-slate-300 font-orbitron mb-1">REWARD MATRIX:</p>
+                    <div class="flex justify-between"><span>Goal Landing:</span> <span class="text-emerald-400 font-mono">+500</span></div>
+                    <div class="flex justify-between"><span>Collision (Mine/Obs):</span> <span class="text-red-400 font-mono">-500</span></div>
+                    <div class="flex justify-between"><span>Pick Power-Up:</span> <span class="text-purple-400 font-mono">+50</span></div>
+                    <div class="flex justify-between"><span>Closing Distance:</span> <span class="text-cyan-400 font-mono">+2 / -2</span></div>
+                </div>
+            </div>
+
+            <!-- RL TRAINING GRAPH -->
+            <div id="panel-chart" class="glass-panel p-5 rounded-xl flex flex-col gap-3">
+                <h2 class="text-sm font-bold font-orbitron text-purple-400 tracking-wider flex items-center justify-between">
+                    <span><i class="fa-solid fa-chart-area"></i> RL SCORE HISTORY</span>
+                    <span id="ep-win-rate" class="text-[10px] text-emerald-400 font-mono">Win: 0%</span>
+                </h2>
+                <div class="w-full h-40">
+                    <canvas id="rlChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Q-TABLE MINIMAL INSPECTOR -->
+            <div id="panel-qtable" class="glass-panel p-5 rounded-xl flex flex-col gap-3">
+                <h2 class="text-sm font-bold font-orbitron text-purple-400 tracking-wider flex items-center justify-between">
+                    <span><i class="fa-solid fa-table-cells"></i> CURRENT STATE Q-VALUES</span>
+                    <span class="text-[10px] text-slate-400">Actions: U, D, L, R</span>
+                </h2>
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono" id="q-values-display">
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">UP: <span class="text-purple-300 font-bold">0.00</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">DOWN: <span class="text-purple-300 font-bold">0.00</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">LEFT: <span class="text-purple-300 font-bold">0.00</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">RIGHT: <span class="text-purple-300 font-bold">0.00</span></div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="border-t border-slate-900 px-6 py-3 text-center text-xs text-slate-500 font-mono flex justify-between items-center">
+        <span>AI SIMULATION LAB // POWER-UP EXPANSION</span>
+        <span>HTML5 CANVAS &bull; CHART.JS &bull; Q-LEARNING / A* INTERCEPTION</span>
+    </footer>
+
+    <script>
+        // Configuration Parameters
+        let gridSize = 12;
+        let obstacleCount = 4;
+        let powerupSpawnCount = 3;
+        let simSpeedFps = 6;
+        let goalDriftEnabled = true;
+        let hazardInterval = 2; // mine & obstacles move once every N steps (1 = every step)
+        const GOAL_RELOCATE_STEP = 15; // landing pad jumps to a random safe cell once, on this step
+
+        // Controller Modes: 'manual' | 'astar' | 'qlearning'
+        let controllerMode = 'manual';
+
+        // RL Hyperparameters
+        let alpha = 0.2;
+        let gamma = 0.9;
+        let epsilon = 1.0;
+        let minEpsilon = 0.05;
+        let epsilonDecay = 0.98;
+
+        // Simulation State
+        let isRunning = false;
+        let stepCount = 0;
+        let totalScore = 0;
+        let currentReward = 0;
+        let episodeCount = 0;
+        let winsCount = 0;
+        let gameOver = false;
+        let simInterval = null;
+
+        // Active Power-Up Effects State
+        let activeEffects = {
+            freezeTurns: 0,      // Freeze hazards for N steps
+            teleportTurns: 0,    // Move up to 2 tiles per step
+        };
+
+        // Entity Positions
+        let dronePos = [0, 0];
+        let dronePrevPos = [0, 0];
+        let goalPos = [0, 0];
+        let minePos = [0, 0];
+        let obstacles = []; 
+        let powerups = []; // Array of objects { pos: [x, y], type: 'freeze'|'teleport'|'shockwave' }
+
+        // Q-Learning Table
+        let qTable = {};
+
+        // Chart Data
+        let scoreHistory = [];
+        let chartInstance = null;
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            initChart();
+            resetSimulation();
+            setupKeyboardListeners();
+            updateUIControlsVisibility();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.width;
+            render();
+        }
+
+        function updateEnvSettings() {
+            gridSize = parseInt(document.getElementById('slider-grid-size').value);
+            obstacleCount = parseInt(document.getElementById('slider-obstacles').value);
+            powerupSpawnCount = parseInt(document.getElementById('slider-powerups').value);
+            simSpeedFps = parseInt(document.getElementById('slider-speed').value);
+            hazardInterval = parseInt(document.getElementById('slider-hazard').value);
+            goalDriftEnabled = document.getElementById('check-goal-drift').checked;
+
+            document.getElementById('val-grid-size').innerText = `${gridSize} x ${gridSize}`;
+            document.getElementById('val-obstacles').innerText = obstacleCount;
+            document.getElementById('val-powerups').innerText = powerupSpawnCount;
+            document.getElementById('val-hazard').innerText = hazardInterval === 1 ? 'Every step' : `Every ${hazardInterval} steps`;
+            document.getElementById('val-speed').innerText = `${simSpeedFps} steps/s`;
+
+            if (isRunning) restartInterval();
+            resetSimulation();
+        }
+
+        function updateRLParams() {
+            epsilon = parseFloat(document.getElementById('slider-epsilon').value);
+            document.getElementById('val-epsilon').innerText = epsilon.toFixed(2);
+        }
+
+        function setControllerMode(mode) {
+            controllerMode = mode;
+            ['manual', 'astar', 'qlearning'].forEach(m => {
+                const btn = document.getElementById(`mode-${m}`);
+                if (m === mode) {
+                    btn.className = "p-2.5 rounded-lg border text-xs font-semibold text-left transition flex items-center justify-between bg-cyan-950/40 border-cyan-500/50 text-cyan-300";
+                } else {
+                    btn.className = "p-2.5 rounded-lg border text-xs font-semibold text-left transition flex items-center justify-between bg-slate-900 border-slate-800 text-slate-400 hover:border-cyan-500/40";
+                }
+            });
+
+            updateUIControlsVisibility();
+            resetSimulation();
+        }
+
+        function updateUIControlsVisibility() {
+            document.getElementById('panel-manual-controls').style.display = (controllerMode === 'manual') ? 'flex' : 'none';
+            document.getElementById('panel-rl-params').style.display = (controllerMode === 'qlearning') ? 'flex' : 'none';
+            document.getElementById('panel-chart').style.display = (controllerMode === 'qlearning') ? 'flex' : 'none';
+            document.getElementById('panel-qtable').style.display = (controllerMode === 'qlearning') ? 'flex' : 'none';
+        }
+
+        function spawnPowerups() {
+            powerups = [];
+            const types = ['freeze', 'teleport', 'shockwave'];
+            for (let i = 0; i < powerupSpawnCount; i++) {
+                let pPos;
+                let valid = false;
+                while (!valid) {
+                    pPos = [
+                        Math.floor(Math.random() * gridSize),
+                        Math.floor(Math.random() * gridSize)
+                    ];
+                    if (!isSamePos(pPos, dronePos) && 
+                        !isSamePos(pPos, goalPos) && 
+                        !isSamePos(pPos, minePos) && 
+                        !obstacles.some(o => isSamePos(o, pPos)) && 
+                        !powerups.some(p => isSamePos(p.pos, pPos))) {
+                        valid = true;
+                    }
+                }
+                const assignedType = types[i % types.length];
+                powerups.push({ pos: pPos, type: assignedType });
+            }
+        }
+
+        function resetSimulation() {
+            stepCount = 0;
+            totalScore = 0;
+            currentReward = 0;
+            gameOver = false;
+            activeEffects = { freezeTurns: 0, teleportTurns: 0 };
+
+            dronePos = [0, 0];
+            dronePrevPos = [0, 0];
+            goalPos = [gridSize - 1, gridSize - 1];
+            minePos = [Math.floor(gridSize / 2), Math.floor(gridSize / 2)];
+
+            obstacles = [];
+            for (let i = 0; i < obstacleCount; i++) {
+                let obs;
+                let valid = false;
+                while (!valid) {
+                    obs = [
+                        Math.floor(Math.random() * (gridSize - 2)) + 2,
+                        Math.floor(Math.random() * (gridSize - 2)) + 2
+                    ];
+                    if (!isSamePos(obs, goalPos) && !isSamePos(obs, minePos) && !obstacles.some(o => isSamePos(o, obs))) {
+                        valid = true;
+                    }
+                }
+                obstacles.push(obs);
+            }
+
+            spawnPowerups();
+            hideOverlay();
+            updateTelemetry();
+            updatePowerupHUD();
+            render();
+        }
+
+        function togglePlayPause() {
+            if (isRunning) pauseSimulation();
+            else startSimulation();
+        }
+
+        function startSimulation() {
+            if (gameOver) resetSimulation();
+            isRunning = true;
+            document.getElementById('icon-play-pause').className = "fa-solid fa-pause";
+            document.getElementById('text-play-pause').innerText = "PAUSE";
+            document.getElementById('system-status').innerText = "EXECUTING";
+            document.getElementById('system-status').className = "text-emerald-400 font-bold animate-pulse";
+            restartInterval();
+        }
+
+        function pauseSimulation() {
+            isRunning = false;
+            clearInterval(simInterval);
+            document.getElementById('icon-play-pause').className = "fa-solid fa-play";
+            document.getElementById('text-play-pause').innerText = "START";
+            document.getElementById('system-status').innerText = "PAUSED";
+            document.getElementById('system-status').className = "text-amber-400 font-bold";
+        }
+
+        function restartInterval() {
+            if (simInterval) clearInterval(simInterval);
+            simInterval = setInterval(() => {
+                if (isRunning && !gameOver) gameStep();
+            }, 1000 / simSpeedFps);
+        }
+
+        function manhattanDist(p1, p2) {
+            return Math.abs(p1[0] - p2[0]) + Math.abs(p1[1] - p2[1]);
+        }
+
+        function isSamePos(p1, p2) {
+            return p1[0] === p2[0] && p1[1] === p2[1];
+        }
+
+        function getValidNeighbors(pos) {
+            const [x, y] = pos;
+            const neighbors = [];
+            const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+            for (let [dx, dy] of dirs) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                    neighbors.push([nx, ny]);
+                }
+            }
+            return neighbors;
+        }
+
+        function hazardsActive(step) {
+            return activeEffects.freezeTurns === 0 && step % hazardInterval === 0;
+        }
+
+        // Pure predictors (same logic as the real hazard moves) used by A* lookahead
+        function nextMinePos(mPos, dPos) {
+            const n = getValidNeighbors(mPos);
+            n.sort((a, b) => manhattanDist(a, dPos) - manhattanDist(b, dPos));
+            return n.length ? n[0] : mPos;
+        }
+        function nextObstaclePositions(dPos, dPrev) {
+            const tx = Math.max(0, Math.min(gridSize - 1, dPos[0] + (dPos[0] - dPrev[0]) * 2));
+            const ty = Math.max(0, Math.min(gridSize - 1, dPos[1] + (dPos[1] - dPrev[1]) * 2));
+            return obstacles.map(o => {
+                const n = getValidNeighbors(o);
+                n.sort((a, b) => manhattanDist(a, [tx, ty]) - manhattanDist(b, [tx, ty]));
+                return n.length ? n[0] : o;
+            });
+        }
+
+        function moveMine() {
+            if (!hazardsActive(stepCount)) return; // Frozen or resting
+            const neighbors = getValidNeighbors(minePos);
+            neighbors.sort((a, b) => manhattanDist(a, dronePos) - manhattanDist(b, dronePos));
+            if (neighbors.length > 0) minePos = neighbors[0];
+        }
+
+        function moveObstaclesPredictive() {
+            if (!hazardsActive(stepCount)) return; // Frozen or resting
+            const vx = dronePos[0] - dronePrevPos[0];
+            const vy = dronePos[1] - dronePrevPos[1];
+
+            const targetX = Math.max(0, Math.min(gridSize - 1, dronePos[0] + vx * 2));
+            const targetY = Math.max(0, Math.min(gridSize - 1, dronePos[1] + vy * 2));
+            const predictedTarget = [targetX, targetY];
+
+            const newObstacles = [];
+            for (let obs of obstacles) {
+                const neighbors = getValidNeighbors(obs);
+                neighbors.sort((a, b) => manhattanDist(a, predictedTarget) - manhattanDist(b, predictedTarget));
+                if (neighbors.length > 0) newObstacles.push(neighbors[0]);
+                else newObstacles.push(obs);
+            }
+            obstacles = newObstacles;
+        }
+
+        function moveGoalEvasive() {
+            if (!goalDriftEnabled) return;
+            if (stepCount % 3 === 0) {
+                const neighbors = getValidNeighbors(goalPos);
+                neighbors.sort((a, b) => manhattanDist(b, minePos) - manhattanDist(a, minePos));
+                if (neighbors.length > 0) goalPos = neighbors[0];
+            }
+        }
+
+        /* STREAMING_CHUNK:Power-up collection triggers and A* / Q-Learning AI adaptation... */
+
+        // Teleport the landing pad to a random safe cell (called once per episode)
+        function relocateGoalRandomly() {
+            const isSafe = (c) =>
+                !isSamePos(c, dronePos) &&
+                !isSamePos(c, goalPos) &&
+                !isSamePos(c, minePos) &&
+                manhattanDist(c, minePos) > 1 &&
+                !obstacles.some(o => isSamePos(o, c) || manhattanDist(o, c) <= 1) &&
+                !powerups.some(p => isSamePos(p.pos, c));
+
+            // Collect every safe cell, then pick one at random
+            const candidates = [];
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    if (isSafe([x, y])) candidates.push([x, y]);
+                }
+            }
+            if (candidates.length === 0) return;
+
+            goalPos = candidates[Math.floor(Math.random() * candidates.length)];
+
+            const status = document.getElementById('system-status');
+            if (status && isRunning) {
+                status.innerText = "PAD RELOCATED";
+                setTimeout(() => {
+                    if (isRunning && !gameOver) status.innerText = "EXECUTING";
+                }, 800);
+            }
+        }
+
+        // Trigger Power-Up Effects
+        function activatePowerup(type) {
+            if (type === 'freeze') {
+                activeEffects.freezeTurns = 3;
+            } else if (type === 'teleport') {
+                activeEffects.teleportTurns = 3;
+            } else if (type === 'shockwave') {
+                // Instantly push back Mine by 3 steps away from drone
+                const dx = minePos[0] - dronePos[0];
+                const dy = minePos[1] - dronePos[1];
+                const pushX = Math.max(0, Math.min(gridSize - 1, minePos[0] + (dx >= 0 ? 3 : -3)));
+                const pushY = Math.max(0, Math.min(gridSize - 1, minePos[1] + (dy >= 0 ? 3 : -3)));
+                minePos = [pushX, pushY];
+
+                // Destroy adjacent obstacles
+                obstacles = obstacles.filter(o => manhattanDist(o, dronePos) > 2);
+            }
+            updatePowerupHUD();
+        }
+
+        function updatePowerupHUD() {
+            const list = document.getElementById('active-powerup-list');
+            let html = '';
+            
+            if (activeEffects.freezeTurns > 0) {
+                html += `<div class="flex items-center justify-between text-cyan-300 bg-cyan-950/50 p-1.5 rounded border border-cyan-500/40">
+                    <span><i class="fa-solid fa-snowflake mr-1.5"></i> Freeze EMP</span>
+                    <span class="font-mono font-bold">${activeEffects.freezeTurns} steps left</span>
+                </div>`;
+            }
+            if (activeEffects.teleportTurns > 0) {
+                html += `<div class="flex items-center justify-between text-purple-300 bg-purple-950/50 p-1.5 rounded border border-purple-500/40">
+                    <span><i class="fa-solid fa-[#fa-bolt] fa-bolt mr-1.5"></i> Quantum Blink</span>
+                    <span class="font-mono font-bold">${activeEffects.teleportTurns} steps left</span>
+                </div>`;
+            }
+
+            if (!html) html = `<span class="text-slate-500 italic">No power-ups currently active.</span>`;
+            list.innerHTML = html;
+        }
+
+        // Danger-weighted A* cost from start to goal (hazards treated as costly cells)
+        function aStarCost(start, goal, mPos, obsList) {
+            const danger = (x, y) => {
+                let d = 0;
+                const dm = Math.abs(x - mPos[0]) + Math.abs(y - mPos[1]);
+                if (dm <= 1) d += 30; else if (dm === 2) d += 10;
+                for (const o of obsList) {
+                    const dd = Math.abs(x - o[0]) + Math.abs(y - o[1]);
+                    if (dd === 0) d += 1000; else if (dd === 1) d += 15;
+                }
+                return d;
+            };
+            const key = (x, y) => y * gridSize + x;
+            const g = new Map([[key(start[0], start[1]), 0]]);
+            const open = [[manhattanDist(start, goal), start[0], start[1]]];
+            const closed = new Set();
+            let expansions = 0;
+            while (open.length && expansions++ < 800) {
+                open.sort((a, b) => a[0] - b[0]);
+                const [, x, y] = open.shift();
+                const k = key(x, y);
+                if (x === goal[0] && y === goal[1]) return g.get(k);
+                if (closed.has(k)) continue;
+                closed.add(k);
+                for (const [nx, ny] of getValidNeighbors([x, y])) {
+                    const nk = key(nx, ny);
+                    if (closed.has(nk)) continue;
+                    const ng = g.get(k) + 1 + danger(nx, ny);
+                    if (ng < (g.has(nk) ? g.get(nk) : Infinity)) {
+                        g.set(nk, ng);
+                        open.push([ng + manhattanDist([nx, ny], goal), nx, ny]);
+                    }
+                }
+            }
+            return 1e6;
+        }
+
+        // A* with one-step hazard lookahead: never steps where a hazard can reach it next turn
+        function chooseAStarAction() {
+            const step = (activeEffects.teleportTurns > 0) ? 2 : 1;
+            const deltas = [[0, -step], [0, step], [-step, 0], [step, 0]];
+            const moving = hazardsActive(stepCount);
+            const threatened = manhattanDist(dronePos, minePos) <= 3 || obstacles.some(o => manhattanDist(dronePos, o) <= 3);
+
+            let best = -1, bestCost = Infinity;
+            let fallback = 0, fallbackDist = -1;
+
+            for (let a = 0; a < 4; a++) {
+                const c = [dronePos[0] + deltas[a][0], dronePos[1] + deltas[a][1]];
+                if (c[0] < 0 || c[0] >= gridSize || c[1] < 0 || c[1] >= gridSize) continue;
+                if (isSamePos(c, goalPos)) return a;
+
+                const m = moving ? nextMinePos(minePos, c) : minePos;
+                const obs = moving ? nextObstaclePositions(c, dronePos) : obstacles;
+                const dead = isSamePos(c, minePos) || isSamePos(c, m) ||
+                             obstacles.some(o => isSamePos(o, c)) || obs.some(o => isSamePos(o, c));
+
+                const dMine = manhattanDist(c, minePos);
+                if (dMine > fallbackDist) { fallbackDist = dMine; fallback = a; }
+                if (dead) continue;
+
+                let cost = aStarCost(c, goalPos, m, obs);
+                if (threatened && powerups.some(p => isSamePos(p.pos, c))) cost -= 12;
+                if (cost < bestCost) { bestCost = cost; best = a; }
+            }
+            return best >= 0 ? best : fallback;
+        }
+
+        function getQStateKey(dPos, gPos, mPos) {
+            const cl = (v, m) => Math.max(-m, Math.min(m, v));
+            let nearest = null, nd = Infinity;
+            for (const o of obstacles) {
+                const d = manhattanDist(o, dPos);
+                if (d < nd) { nd = d; nearest = o; }
+            }
+            const ob = nearest ? `${cl(nearest[0] - dPos[0], 2)},${cl(nearest[1] - dPos[1], 2)}` : 'x';
+            const hasFreeze = activeEffects.freezeTurns > 0 ? 1 : 0;
+            const hasTeleport = activeEffects.teleportTurns > 0 ? 1 : 0;
+            return `${cl(gPos[0] - dPos[0], 4)},${cl(gPos[1] - dPos[1], 4)}|${cl(mPos[0] - dPos[0], 2)},${cl(mPos[1] - dPos[1], 2)}|${ob}|F${hasFreeze}T${hasTeleport}`;
+        }
+
+        function getQValues(stateKey) {
+            if (!qTable[stateKey]) {
+                qTable[stateKey] = [0.0, 0.0, 0.0, 0.0];
+            }
+            return qTable[stateKey];
+        }
+
+        function chooseQAction(stateKey) {
+            if (Math.random() < epsilon) {
+                return Math.floor(Math.random() * 4);
+            }
+            const qVals = getQValues(stateKey);
+            let maxVal = -Infinity;
+            let bestActions = [];
+            for (let a = 0; a < 4; a++) {
+                if (qVals[a] > maxVal) {
+                    maxVal = qVals[a];
+                    bestActions = [a];
+                } else if (qVals[a] === maxVal) {
+                    bestActions.push(a);
+                }
+            }
+            return bestActions[Math.floor(Math.random() * bestActions.length)];
+        }
+
+        function updateQValue(state, action, reward, nextState) {
+            const currentQ = getQValues(state)[action];
+            const maxNextQ = Math.max(...getQValues(nextState));
+            const newQ = currentQ + alpha * (reward + gamma * maxNextQ - currentQ);
+            qTable[state][action] = newQ;
+        }
+
+        let pendingManualAction = null;
+
+        function triggerManualMove(dir) {
+            if (controllerMode !== 'manual' || gameOver) return;
+            if (dir === 'UP') pendingManualAction = 0;
+            if (dir === 'DOWN') pendingManualAction = 1;
+            if (dir === 'LEFT') pendingManualAction = 2;
+            if (dir === 'RIGHT') pendingManualAction = 3;
+
+            gameStep();
+        }
+
+        function setupKeyboardListeners() {
+            window.addEventListener('keydown', (e) => {
+                if (controllerMode !== 'manual' || gameOver) return;
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') triggerManualMove('UP');
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') triggerManualMove('DOWN');
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') triggerManualMove('LEFT');
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') triggerManualMove('RIGHT');
+            });
+        }
+
+        function stepOnce() {
+            if (gameOver) resetSimulation();
+            gameStep();
+        }
+
+        function gameStep() {
+            if (gameOver) return;
+
+            stepCount++;
+            dronePrevPos = [...dronePos];
+
+            // Decrement active effects
+            if (activeEffects.freezeTurns > 0) activeEffects.freezeTurns--;
+            if (activeEffects.teleportTurns > 0) activeEffects.teleportTurns--;
+            updatePowerupHUD();
+
+            let action = 0;
+            const currentStateKey = getQStateKey(dronePos, goalPos, minePos);
+
+            if (controllerMode === 'manual') {
+                if (pendingManualAction === null) return;
+                action = pendingManualAction;
+                pendingManualAction = null;
+            } else if (controllerMode === 'astar') {
+                action = chooseAStarAction();
+            } else if (controllerMode === 'qlearning') {
+                action = chooseQAction(currentStateKey);
+            }
+
+            // Move step distance (1 tile or 2 tiles if Teleport is active)
+            const stepMult = (activeEffects.teleportTurns > 0) ? 2 : 1;
+            const deltas = [[0, -stepMult], [0, stepMult], [-stepMult, 0], [stepMult, 0]];
+            const nx = dronePos[0] + deltas[action][0];
+            const ny = dronePos[1] + deltas[action][1];
+
+            let hitWall = false;
+            if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                dronePos = [nx, ny];
+            } else {
+                hitWall = true;
+            }
+
+            let reward = -1;
+            const prevDist = manhattanDist(dronePrevPos, goalPos);
+            const currDist = manhattanDist(dronePos, goalPos);
+
+            if (currDist < prevDist) reward += 2;
+            else reward -= 2;
+
+            if (hitWall) reward -= 10;
+
+            // Check Power-Up Pickups
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                if (isSamePos(dronePos, powerups[i].pos)) {
+                    reward += 50;
+                    activatePowerup(powerups[i].type);
+                    powerups.splice(i, 1); // Remove collected power-up
+                }
+            }
+
+            // Check Collision
+            let crash = isSamePos(dronePos, minePos) || obstacles.some(o => isSamePos(dronePos, o));
+            let landed = isSamePos(dronePos, goalPos);
+
+            if (landed) {
+                reward += 500;
+                gameOver = true;
+                winsCount++;
+                showOverlay(true, "MISSION ACCOMPLISHED!", "Drone landed safely on goal pad with power-up assistance.");
+            } else if (crash) {
+                reward -= 500;
+                gameOver = true;
+                showOverlay(false, "CRASH DETECTED!", "Drone collided with dynamic threat.");
+            }
+
+            // Move Hazards
+            if (!gameOver) {
+                moveMine();
+                moveObstaclesPredictive();
+                moveGoalEvasive();
+
+                if (stepCount === GOAL_RELOCATE_STEP) relocateGoalRandomly();
+
+                if (isSamePos(dronePos, minePos) || obstacles.some(o => isSamePos(dronePos, o))) {
+                    reward -= 500;
+                    gameOver = true;
+                    showOverlay(false, "INTERCEPTED!", "Dynamic mine or flanking obstacle intercepted the drone.");
+                }
+            }
+
+            currentReward = reward;
+            totalScore += reward;
+
+            if (controllerMode === 'qlearning') {
+                const nextStateKey = getQStateKey(dronePos, goalPos, minePos);
+                updateQValue(currentStateKey, action, reward, nextStateKey);
+
+                const currentQs = getQValues(currentStateKey);
+                document.getElementById('q-values-display').innerHTML = `
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">UP: <span class="${currentQs[0] >= 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">${currentQs[0].toFixed(1)}</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">DOWN: <span class="${currentQs[1] >= 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">${currentQs[1].toFixed(1)}</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">LEFT: <span class="${currentQs[2] >= 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">${currentQs[2].toFixed(1)}</span></div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-800">RIGHT: <span class="${currentQs[3] >= 0 ? 'text-emerald-400' : 'text-red-400'} font-bold">${currentQs[3].toFixed(1)}</span></div>
+                `;
+            }
+
+            if (gameOver) {
+                episodeCount++;
+                scoreHistory.push(totalScore);
+                if (scoreHistory.length > 30) scoreHistory.shift();
+
+                if (controllerMode === 'qlearning') {
+                    epsilon = Math.max(minEpsilon, epsilon * epsilonDecay);
+                    document.getElementById('slider-epsilon').value = epsilon;
+                    document.getElementById('val-epsilon').innerText = epsilon.toFixed(2);
+                }
+
+                updateChart();
+            }
+
+            updateTelemetry();
+            render();
+        }
+
+        function trainFast(episodes) {
+            if (controllerMode !== 'qlearning') setControllerMode('qlearning');
+            pauseSimulation();
+
+            for (let i = 0; i < episodes; i++) {
+                resetSimulation();
+                let steps = 0;
+                while (!gameOver && steps < 100) {
+                    gameStep();
+                    steps++;
+                }
+            }
+            render();
+        }
+
+        function updateTelemetry() {
+            document.getElementById('stat-steps').innerText = stepCount;
+            document.getElementById('stat-reward').innerText = currentReward;
+            document.getElementById('stat-dist').innerText = manhattanDist(dronePos, goalPos);
+            document.getElementById('stat-episodes').innerText = episodeCount;
+            document.getElementById('live-score').innerText = totalScore;
+
+            if (episodeCount > 0) {
+                const winRate = ((winsCount / episodeCount) * 100).toFixed(0);
+                document.getElementById('ep-win-rate').innerText = `Win: ${winRate}%`;
+            }
+        }
+
+        function showOverlay(success, title, desc) {
+            const overlay = document.getElementById('canvas-overlay');
+            const icon = document.getElementById('overlay-icon');
+            const titleEl = document.getElementById('overlay-title');
+            const descEl = document.getElementById('overlay-desc');
+
+            if (success) {
+                icon.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 shadow-lg shadow-emerald-500/50"></i>`;
+                titleEl.className = "text-2xl font-bold font-orbitron mb-2 text-emerald-400";
+            } else {
+                icon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-500 shadow-lg shadow-red-500/50"></i>`;
+                titleEl.className = "text-2xl font-bold font-orbitron mb-2 text-red-500";
+            }
+
+            titleEl.innerText = title;
+            descEl.innerText = desc;
+
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+        }
+
+        function hideOverlay() {
+            const overlay = document.getElementById('canvas-overlay');
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+        }
+
+        function initChart() {
+            const ctxChart = document.getElementById('rlChart').getContext('2d');
+            chartInstance = new Chart(ctxChart, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Episode Score',
+                        data: [],
+                        borderColor: '#a855f7',
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            ticks: { color: '#94a3b8', font: { size: 9 } },
+                            grid: { color: 'rgba(51, 65, 85, 0.3)' }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!chartInstance) return;
+            chartInstance.data.labels = scoreHistory.map((_, i) => i + 1);
+            chartInstance.data.datasets[0].data = scoreHistory;
+            chartInstance.update();
+        }
+
+        function render() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cellSize = w / gridSize;
+
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid Lines
+            ctx.strokeStyle = 'rgba(30, 41, 59, 0.6)';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= gridSize; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0); ctx.lineTo(i * cellSize, h); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize); ctx.lineTo(w, i * cellSize); ctx.stroke();
+            }
+
+            // Draw Power-Ups
+            for (let p of powerups) {
+                const px = p.pos[0] * cellSize + cellSize / 2;
+                const py = p.pos[1] * cellSize + cellSize / 2;
+                const radius = cellSize * 0.28;
+
+                ctx.beginPath();
+                if (p.type === 'freeze') {
+                    ctx.fillStyle = '#67e8f9';
+                    ctx.shadowColor = '#67e8f9';
+                } else if (p.type === 'teleport') {
+                    ctx.fillStyle = '#c084fc';
+                    ctx.shadowColor = '#c084fc';
+                } else if (p.type === 'shockwave') {
+                    ctx.fillStyle = '#facc15';
+                    ctx.shadowColor = '#facc15';
+                }
+                ctx.shadowBlur = 12;
+                ctx.arc(px, py, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Inner Symbol
+                ctx.fillStyle = '#0f172a';
+                ctx.font = `${cellSize * 0.3}px FontAwesome, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let symbol = '⚡';
+                if (p.type === 'freeze') symbol = '❄';
+                if (p.type === 'teleport') symbol = '🌀';
+                if (p.type === 'shockwave') symbol = '💥';
+                ctx.fillText(symbol, px, py);
+            }
+
+            // Goal Pad
+            const gx = goalPos[0] * cellSize;
+            const gy = goalPos[1] * cellSize;
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+            ctx.fillRect(gx, gy, cellSize, cellSize);
+
+            ctx.fillStyle = '#22c55e';
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.roundRect(gx + cellSize * 0.15, gy + cellSize * 0.15, cellSize * 0.7, cellSize * 0.7, 6);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.font = `${cellSize * 0.4}px Orbitron, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('H', gx + cellSize / 2, gy + cellSize / 2);
+
+            // Mine (Wumpus)
+            const mx = minePos[0] * cellSize;
+            const my = minePos[1] * cellSize;
+
+            ctx.fillStyle = activeEffects.freezeTurns > 0 ? '#38bdf8' : '#ef4444';
+            ctx.shadowColor = activeEffects.freezeTurns > 0 ? '#38bdf8' : '#ef4444';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(mx + cellSize / 2, my + cellSize / 2, cellSize * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Obstacles
+            for (let obs of obstacles) {
+                const ox = obs[0] * cellSize;
+                const oy = obs[1] * cellSize;
+
+                ctx.fillStyle = activeEffects.freezeTurns > 0 ? '#93c5fd' : '#f59e0b';
+                ctx.shadowColor = activeEffects.freezeTurns > 0 ? '#93c5fd' : '#f59e0b';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.roundRect(ox + cellSize * 0.2, oy + cellSize * 0.2, cellSize * 0.6, cellSize * 0.6, 4);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            // Drone
+            const dx = dronePos[0] * cellSize;
+            const dy = dronePos[1] * cellSize;
+
+            ctx.strokeStyle = activeEffects.teleportTurns > 0 ? 'rgba(192, 132, 252, 0.6)' : 'rgba(56, 189, 248, 0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(dx + cellSize / 2, dy + cellSize / 2, cellSize * 1.2, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = activeEffects.teleportTurns > 0 ? '#c084fc' : '#38bdf8';
+            ctx.shadowColor = activeEffects.teleportTurns > 0 ? '#c084fc' : '#38bdf8';
+            ctx.shadowBlur = 18;
+            ctx.beginPath();
+            ctx.arc(dx + cellSize / 2, dy + cellSize / 2, cellSize * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    </script>
+</body>
+</html>
